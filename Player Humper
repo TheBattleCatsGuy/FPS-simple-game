@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D FPS with Walls</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #hud { 
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            color: #00ff00; 
+            font-family: 'Orbitron', sans-serif; 
+            font-size: 18px;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #00ff00;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="hud">
+        <div id="health">Health: 100</div>
+        <div id="ammo">Ammo: 30</div>
+        <div id="weapon">Weapon: Pistol</div>
+    </div>
+    <div id="crosshair"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, player;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let weapons = ['Pistol', 'AR', 'Shotgun', 'Bazooka', 'Knife'];
+        let currentWeapon = 0;
+        let ammo = 30;
+        let health = 100;
+        let mouseLocked = false;
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            scene.background = new THREE.Color(0x87CEEB);
+
+            player = new THREE.Group();
+            scene.add(player);
+            camera.position.set(0, 1.6, 0);
+            player.add(camera);
+
+            // Add walls
+            addWalls();
+
+            // Setup event listeners
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            document.addEventListener('mousedown', onMouseDown);
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('pointerlockchange', onPointerLockChange);
+
+            animate();
+        }
+
+        function addWalls() {
+            const wallGeometry = new THREE.BoxGeometry(20, 5, 1);
+            const wallMaterial = new THREE.MeshBasicMaterial({color: 0x8b4513});
+
+            // Front wall
+            const frontWall = new THREE.Mesh(wallGeometry, wallMaterial);
+            frontWall.position.set(0, 2.5, -10);
+            scene.add(frontWall);
+
+            // Back wall
+            const backWall = new THREE.Mesh(wallGeometry, wallMaterial);
+            backWall.position.set(0, 2.5, 10);
+            scene.add(backWall);
+
+            // Left wall
+            const leftWall = new THREE.Mesh(wallGeometry, wallMaterial);
+            leftWall.rotation.y = Math.PI / 2;
+            leftWall.position.set(-10, 2.5, 0);
+            scene.add(leftWall);
+
+            // Right wall
+            const rightWall = new THREE.Mesh(wallGeometry, wallMaterial);
+            rightWall.rotation.y = Math.PI / 2;
+            rightWall.position.set(10, 2.5, 0);
+            scene.add(rightWall);
+        }
+
+        function onKeyDown(event) {
+            switch(event.code) {
+                case 'KeyW': moveForward = true; break;
+                case 'KeyS': moveBackward = true; break;
+                case 'KeyA': moveLeft = true; break;
+                case 'KeyD': moveRight = true; break;
+                case 'KeyQ': reload(); break;
+                case 'KeyE': switchWeapon(); break;
+                case 'Escape': 
+                    if (mouseLocked) document.exitPointerLock();
+                    break;
+            }
+        }
+
+        function onKeyUp(event) {
+            switch(event.code) {
+                case 'KeyW': moveForward = false; break;
+                case 'KeyS': moveBackward = false; break;
+                case 'KeyA': moveLeft = false; break;
+                case 'KeyD': moveRight = false; break;
+            }
+        }
+
+        function onMouseDown(event) {
+            if (!mouseLocked) {
+                document.body.requestPointerLock();
+            } else if (event.button === 0) {
+                shoot();
+            }
+        }
+
+        function onMouseMove(event) {
+            if (mouseLocked) {
+                const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+                const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+                player.rotation.y -= movementX * 0.002;
+                camera.rotation.x -= movementY * 0.002;
+                camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+            }
+        }
+
+        function onPointerLockChange() {
+            mouseLocked = document.pointerLockElement === document.body;
+        }
+
+        function shoot() {
+            if (ammo > 0) {
+                ammo--;
+                updateHUD();
+                console.log('Bang!');
+            } else {
+                console.log('Click! Out of ammo');
+            }
+        }
+
+        function reload() {
+            ammo = 30;
+            updateHUD();
+            console.log('Reloaded!');
+        }
+
+        function switchWeapon() {
+            currentWeapon = (currentWeapon + 1) % weapons.length;
+            updateHUD();
+            console.log('Switched to ' + weapons[currentWeapon]);
+        }
+
+        function updateHUD() {
+            document.getElementById('health').textContent = `Health: ${health}`;
+            document.getElementById('ammo').textContent = `Ammo: ${ammo}`;
+            document.getElementById('weapon').textContent = `Weapon: ${weapons[currentWeapon]}`;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const speed = 0.1;
+            const direction = new THREE.Vector3();
+            player.getWorldDirection(direction);
+            if (moveForward) player.position.add(direction.multiplyScalar(speed));
+            if (moveBackward) player.position.sub(direction.multiplyScalar(speed));
+            if (moveLeft) player.position.add(direction.cross(camera.up).normalize().multiplyScalar(-speed));
+            if (moveRight) player.position.add(direction.cross(camera.up).normalize().multiplyScalar(speed));
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
